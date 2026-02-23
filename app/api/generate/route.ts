@@ -67,12 +67,16 @@ export async function POST(req: NextRequest) {
       shortClips,
     });
 
+    console.log(`[generate] calling Claude for platform: ${platform}`);
+
     const message = await client.messages.create({
       model:      'claude-sonnet-4-6',
       max_tokens: 4096,
       system:     systemPrompt,
       messages:   [{ role: 'user', content: userMessage }],
     });
+
+    console.log(`[generate] Claude responded, stop_reason: ${message.stop_reason}`);
 
     const rawText = message.content[0].type === 'text' ? message.content[0].text : '';
     const cleaned = rawText.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
@@ -81,15 +85,18 @@ export async function POST(req: NextRequest) {
     try {
       result = JSON.parse(cleaned);
     } catch {
+      console.error(`[generate] JSON parse failed. Raw response:\n${rawText.slice(0, 500)}`);
       return NextResponse.json(
         { error: 'Claude returned invalid JSON. Try again.', raw: rawText },
         { status: 500 }
       );
     }
 
+    console.log(`[generate] success for platform: ${platform}`);
     return NextResponse.json({ result });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error(`[generate] error:`, err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
