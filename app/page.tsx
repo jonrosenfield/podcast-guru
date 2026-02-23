@@ -137,30 +137,39 @@ export default function Home() {
     setLoadingPlatforms(new Set(selectedPlatforms));
     setActivePlatform(selectedPlatforms[0]);
 
-    let newResults: Results = {};
+    const newResults: Results = {};
 
-    try {
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platforms: selectedPlatforms,
-          episodeNumber,
-          episodeTopic,
-          episodeTranscript,
-          shortClips: shortClips.filter((c) => c.transcript.trim()),
-        }),
-      });
+    await Promise.all(
+      selectedPlatforms.map(async (platform) => {
+        try {
+          const res = await fetch('/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              platform,
+              episodeNumber,
+              episodeTopic,
+              episodeTranscript,
+              shortClips: shortClips.filter((c) => c.transcript.trim()),
+            }),
+          });
 
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error ?? 'Generation failed');
-      newResults = data.results ?? {};
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      setError(msg);
-    }
+          const data = await res.json();
+          if (!res.ok || data.error) throw new Error(data.error ?? `Failed to generate ${platform}`);
+          newResults[platform] = data.result;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Unknown error';
+          setError(`Error generating ${PLATFORM_LABELS[platform]}: ${msg}`);
+        } finally {
+          setLoadingPlatforms((prev) => {
+            const next = new Set(prev);
+            next.delete(platform);
+            return next;
+          });
+        }
+      })
+    );
 
-    setLoadingPlatforms(new Set());
     setResults(newResults);
     setLoading(false);
 
